@@ -1,0 +1,78 @@
+# GreenOps AI: Xebia’s Unified Carbon Reduction Dashboard
+
+GreenOps AI is a cloud sustainability and ESG platform designed to transition cloud infrastructure tracking from a manual, reactive model to a proactive, data-driven sustainability architecture. It integrates cloud consumption data, forecasts carbon emissions using Machine Learning, and provides actionable optimization recommendations to reduce carbon footprints and optimize spend.
+
+## Project Structure
+```text
+greenops-ai-dashboard/
+├── data/              # Raw and enriched usage datasets, visualization charts
+├── model/             # Time-series forecasting and regression models
+├── api/               # FastAPI backend services
+├── dashboard/         # Streamlit/React interactive frontend
+└── README.md          # Documentation and Concept Checks
+```
+
+---
+
+## Concept Checks
+
+### 🚀 Hurdle 0: Orientation & Azure Setup
+
+#### 1. What is a Resource Group in Azure, and why do we use one?
+An Azure **Resource Group** is a logical container that groups related Azure services and resources (such as Virtual Machines, Storage Accounts, databases, and App Services) for a specific solution. We use resource groups to:
+- **Unified Management**: Easily deploy, update, or delete all resources in a single action (lifecyle management).
+- **Access Control**: Apply Role-Based Access Control (RBAC) at the resource group level, inheriting permissions down to all resources inside.
+- **Billing & Cost Tracking**: Group billing data together to monitor the cost of specific environments (like production, staging, development).
+
+#### 2. What is the difference between a virtual environment and a global Python installation?
+- **Global Python Installation**: Installs packages system-wide, shared by all users and all projects. This frequently causes version conflicts (e.g., project A needing pandas `1.x` and project B needing pandas `2.x`).
+- **Virtual Environment (`venv`)**: Creates an isolated directory with its own copy of the Python interpreter, pip package manager, and a local site-packages folder. Every dependency installed here is isolated, ensuring project reproducibility and preventing conflicts.
+
+#### 3. Why is version control important from Day 1 of a project?
+Version control (like Git) is essential from day one to:
+- **Traceability**: Maintain a complete chronological history of code changes, enabling teams to understand *why* and *when* lines of code were modified.
+- **Rollback Safety**: Revert to previous working states instantly if new code introduces breaking bugs.
+- **Collaboration**: Prevent developers from overwriting each other's work by merging changes through branches and pull requests.
+- **Professional Discipline**: Keep experimental features separate from the stable codebase.
+
+### 📊 Hurdle 1: Dataset & Carbon Baseline
+
+#### 1. What does CO2e mean and why is it used as the standard unit for carbon accounting?
+**CO2e (Carbon Dioxide Equivalent)** is a standard metric used to compare the emissions from various greenhouse gases (such as methane, nitrous oxide, and fluorinated gases) on the basis of their **Global Warming Potential (GWP)** over a specific timeframe (usually 100 years).
+- **Why it is used**: Different gases trap different amounts of heat. For instance, methane is about 28 times more potent than CO2 over 100 years. Expressing all emissions in CO2e provides a single, standardized unit for carbon accounting, enabling unified comparisons, tracking, and reporting.
+
+#### 2. Why is it important to separate emission factors by resource type rather than using a single flat rate?
+Cloud infrastructure components use energy differently:
+- **Compute (VMs/CPUs)**: Draws highly dynamic power directly proportional to CPU utilization.
+- **Storage**: Consumes power constantly to keep disks spinning (HDDs) or powered (SSDs), regardless of access rate.
+- **Data Transfer (Networking)**: Uses power in bursts across switches and fiber-optic routers to transmit packets.
+Using a single flat rate would obscure the root causes of emissions, leading to inaccurate metrics and ineffective optimization decisions (e.g., trying to optimize storage when networking is the major driver).
+
+#### 3. What is the most carbon-intensive service type in your dataset?
+Based on our data processing script:
+- **Networking** is the most carbon-intensive service type, producing **7.5127 kg CO2e** (46.3% of total emissions).
+- This is followed closely by **VM (Compute)** at **5.8584 kg CO2e** (36.1%).
+
+#### Baseline Carbon Performance Metrics (Results)
+- **Total Ingested Rows (after null cleaning)**: 1,603 rows (17 incomplete rows cleaned)
+- **Total Cloud Spend**: $4,742.20 USD
+- **Average Daily Spend**: $12.99 USD
+- **Total Carbon Footprint**: **16.2243 kg CO2e**
+
+##### Carbon Emissions by Service Type:
+- **Networking**: 7.5127 kg CO2e (46.3%)
+- **VM (Compute)**: 5.8584 kg CO2e (36.1%)
+- **Storage**: 1.4923 kg CO2e (9.2%)
+- **Database**: 1.3609 kg CO2e (8.4%)
+
+##### Carbon Emissions by Region:
+- **eastus**: 7.9587 kg CO2e (49.1%)
+- **westeurope**: 4.9390 kg CO2e (30.4%)
+- **southeastasia**: 3.3266 kg CO2e (20.5%)
+
+##### Carbon Emissions by Team:
+- **Engineering**: 6.3078 kg CO2e (38.9%)
+- **Data**: 4.0950 kg CO2e (25.2%)
+- **DevOps**: 3.5145 kg CO2e (21.7%)
+- **QA**: 2.3070 kg CO2e (14.2%)
+
