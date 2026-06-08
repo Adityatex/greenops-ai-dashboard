@@ -121,7 +121,7 @@ else:
         service_co2e.columns = ['Service Type', 'CO2e (kg)']
         st.dataframe(
             service_co2e.style.background_gradient(cmap='Greens', subset=['CO2e (kg)']),
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
         
@@ -131,7 +131,7 @@ else:
         team_co2e.columns = ['Team', 'CO2e (kg)']
         st.dataframe(
             team_co2e.style.background_gradient(cmap='Blues', subset=['CO2e (kg)']),
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
 
@@ -156,5 +156,5 @@ else:
         (df['team'].isin(selected_team))
     ]
     
-    st.dataframe(filtered_df, use_container_width=True)
+    st.dataframe(filtered_df, width='stretch')
     st.caption(f"Showing {len(filtered_df)} records of {len(df)} after filtering.")
