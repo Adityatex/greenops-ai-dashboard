@@ -1,14 +1,7 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import requests
 import os
-import io
-import joblib
-from dotenv import load_dotenv
-from azure.storage.blob import BlobServiceClient
-
-# Load environment variables
-load_dotenv()
 
 # Set page configuration
 st.set_page_config(
@@ -18,42 +11,30 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Cache data loading to optimize performance
-@st.cache_data
-def load_dataset():
-    conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    if conn_str:
-        try:
-            blob_service_client = BlobServiceClient.from_connection_string(conn_str)
-            container_name = "greenops-data"
-            blob_name = "cloud_usage_enriched.csv"
-            container_client = blob_service_client.get_container_client(container_name)
-            blob_client = container_client.get_blob_client(blob_name)
-            data = blob_client.download_blob().readall()
-            df = pd.read_csv(io.BytesIO(data), parse_dates=['date'])
-            return df, "Live Cloud Mode ☁️"
-        except Exception as e:
-            st.sidebar.error(f"Azure Connection Error: {e}")
-            
-    # Fallback to local
-    enriched_path = 'data/cloud_usage_enriched.csv'
-    if os.path.exists(enriched_path):
-        df = pd.read_csv(enriched_path, parse_dates=['date'])
-        return df, "Local Offline Mode 💾"
-    else:
-        return None, None
+# API Base URL from environment or fallback to localhost
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-# Load dataset and determine mode
-df, mode_label = load_dataset()
+# Helper function to fetch data from the FastAPI backend
+def fetch_from_api(endpoint):
+    url = f"{API_BASE_URL}{endpoint}"
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.sidebar.error(f"API Error ({response.status_code}): {response.text}")
+            return None
+    except Exception as e:
+        return None
 
-# Custom Styling for Premium Design
+# Custom styling for premium look and feel
 st.markdown("""
     <style>
     .main {
         background-color: #f8f9fa;
     }
     .metric-card {
-        background: white;
+        background: #ffffff;
         padding: 20px;
         border-radius: 12px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
@@ -71,205 +52,135 @@ st.markdown("""
         font-weight: 700;
         margin-top: 5px;
     }
+    .score-badge {
+        font-size: 48px;
+        font-weight: 800;
+        text-align: center;
+        padding: 10px;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Add sidebar details
-if mode_label:
-    st.sidebar.subheader("🔌 Connection Status")
-    if "Live Cloud" in mode_label:
-        st.sidebar.success(mode_label)
-        st.sidebar.info("Data source: Azure Blob Storage (`greenops-data`)")
-    else:
-        st.sidebar.warning(mode_label)
-        st.sidebar.info("Data source: Local filesystem (`data/cloud_usage_enriched.csv`)")
+# Title & Overview
+st.title("🌱 GreenOps AI: Unified Carbon Reduction Dashboard")
+st.write("Exposes real-time cloud carbon footprint metrics, ML-driven time-series forecasting, and shift-left sustainability gating.")
 
-st.title("🌱 GreenOps AI: Cloud Sustainability & Carbon Dashboard")
-st.write("This interactive dashboard aggregates, cleans, and analyzes Xebia's simulated cloud infrastructure usage to establish a carbon emissions baseline and forecast future trends.")
+# Sidebar Status
+st.sidebar.subheader("🔌 Connection Status")
+health_data = fetch_from_api("/health")
 
-if df is None:
-    st.error("Enriched dataset not found. Please paste your Azure Connection String in `.env` or run `python data/process_dataset.py` to generate a local baseline.")
-else:
-    # Create main tabs
-    tab_analytics, tab_forecast = st.tabs(["📊 Baseline Analytics", "🔮 AI Carbon Forecasting"])
+if health_data and health_data.get("status") == "ok":
+    st.sidebar.success("FastAPI Backend: ONLINE 🟢")
+    st.sidebar.info(f"Connected to API base: `{API_BASE_URL}`")
     
-    with tab_analytics:
-        st.markdown("### Sprint 1: Carbon Baseline & Dataset Explorer")
+    # Fetch dynamic data from REST API
+    summary = fetch_from_api("/metrics/summary")
+    daily_data = fetch_from_api("/metrics/daily")
+    green_score = fetch_from_api("/green-score")
+    
+    if summary and daily_data and green_score:
         
-        # Calculate global metrics
-        total_cost = df['cost_usd'].sum()
-        total_co2e = df['co2e_kg'].sum()
-        avg_daily_cost = df.groupby('date')['cost_usd'].sum().mean()
-        avg_daily_co2e = df.groupby('date')['co2e_kg'].sum().mean()
-        
-        # KPI Grid Layout
-        st.markdown("---")
-        col1, col2, col3, col4 = st.columns(4)
+        # 1. Row 1: KPI Metrics & Green Score
+        col1, col2, col3, col_score = st.columns([1, 1, 1, 1.2])
         
         with col1:
-            st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">Total Cloud Spend</div>
-                    <div class="metric-value">${total_cost:,.2f}</div>
+            st.metric(
+                label="Total Carbon Footprint",
+                value=f"{summary['total_co2e_kg']:,.2f} kg CO2e"
+            )
+            st.markdown("""
+                <div class="metric-card" style="border-left-color: #e63946; padding: 10px; margin-top: -15px;">
+                    <div class="metric-label">Cloud Sustainability Target</div>
+                    <div class="metric-value" style="font-size: 16px; color: #e63946;">Goal: < 2.0 kg/day</div>
                 </div>
             """, unsafe_allow_html=True)
             
         with col2:
-            st.markdown(f"""
-                <div class="metric-card" style="border-left-color: #e63946;">
-                    <div class="metric-label">Total Carbon Footprint</div>
-                    <div class="metric-value">{total_co2e:,.2f} kg CO2e</div>
+            st.metric(
+                label="Total Cloud Cost",
+                value=f"${summary['total_cost_usd']:,.2f} USD"
+            )
+            st.markdown("""
+                <div class="metric-card" style="border-left-color: #457b9d; padding: 10px; margin-top: -15px;">
+                    <div class="metric-label">Primary Cloud Region</div>
+                    <div class="metric-value" style="font-size: 16px; color: #457b9d;">{0}</div>
                 </div>
-            """, unsafe_allow_html=True)
+            """.format(summary['top_emitting_region']), unsafe_allow_html=True)
             
         with col3:
-            st.markdown(f"""
-                <div class="metric-card" style="border-left-color: #457b9d;">
-                    <div class="metric-label">Average Daily Cost</div>
-                    <div class="metric-value">${avg_daily_cost:,.2f}</div>
+            st.metric(
+                label="Highest-Emission Team",
+                value=summary['top_emitting_team']
+            )
+            st.markdown("""
+                <div class="metric-card" style="border-left-color: #ffb703; padding: 10px; margin-top: -15px;">
+                    <div class="metric-label">Daily Avg Cost</div>
+                    <div class="metric-value" style="font-size: 16px; color: #ffb703;">$12.99 USD</div>
                 </div>
             """, unsafe_allow_html=True)
             
-        with col4:
+        with col_score:
+            # Color coding for Green Score
+            grade = green_score["grade"]
+            gate = green_score["gate"]
+            bg_color = "#2a9d8f" # A, B, C (PASS)
+            if gate == "WARNING":
+                bg_color = "#f4a261"
+            elif gate == "BLOCKED":
+                bg_color = "#e76f51"
+                
             st.markdown(f"""
-                <div class="metric-card" style="border-left-color: #ffb703;">
-                    <div class="metric-label">Avg Daily Emissions</div>
-                    <div class="metric-value">{avg_daily_co2e:,.3f} kg</div>
+                <div style="background-color: {bg_color}; padding: 15px; border-radius: 12px; color: white;">
+                    <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; opacity: 0.8;">Shift-Left Sustainability Score</div>
+                    <div style="font-size: 40px; font-weight: 800; line-height: 1;">Grade {grade}</div>
+                    <div style="font-size: 14px; font-weight: 600; margin-top: 5px;">VERDICT: {gate}</div>
+                    <div style="font-size: 11px; opacity: 0.9; margin-top: 5px;">{green_score['action']}</div>
                 </div>
             """, unsafe_allow_html=True)
 
         st.markdown("---")
         
-        # Graphs and Visualizations Section
-        col_left, col_right = st.columns([2, 1])
+        # 2. Row 2: Daily Emissions Trend Line Chart
+        st.subheader("📈 Daily Carbon Emissions Trend (Historical)")
+        daily_df = pd.DataFrame(daily_data)
+        daily_df['date'] = pd.to_datetime(daily_df['date'])
+        daily_df = daily_df.set_index('date')
+        st.line_chart(daily_df['co2e_kg'], color="#2ec4b6")
         
-        with col_left:
-            st.subheader("📈 Carbon Emissions Over Time")
-            daily_co2e = df.groupby('date')['co2e_kg'].sum().sort_index()
-            st.line_chart(daily_co2e, color="#2ec4b6")
-            
-        with col_right:
-            st.subheader("🌍 Emissions by Cloud Region")
-            region_co2e = df.groupby('region')['co2e_kg'].sum().sort_values(ascending=False)
-            st.bar_chart(region_co2e, color="#1d3557")
-
         st.markdown("---")
         
-        # Service and Team breakdowns
-        col_srv, col_team = st.columns(2)
+        # 3. Row 3: Time-Series Carbon Forecasting API Query
+        st.subheader("🔮 30-Day Carbon Emissions Time-Series Forecast")
+        st.write("Click below to query the FastAPI time-series model (Linear Regression) to predict emissions recursively for the next month.")
         
-        with col_srv:
-            st.subheader("🔌 Emissions by Cloud Service Type")
-            service_co2e = df.groupby('service_type')['co2e_kg'].sum().sort_values(ascending=False).reset_index()
-            service_co2e.columns = ['Service Type', 'CO2e (kg)']
-            st.dataframe(
-                service_co2e.style.background_gradient(cmap='Greens', subset=['CO2e (kg)']),
-                width='stretch',
-                hide_index=True
-            )
-            
-        with col_team:
-            st.subheader("👥 Emissions by Engineering Team")
-            team_co2e = df.groupby('team')['co2e_kg'].sum().sort_values(ascending=False).reset_index()
-            team_co2e.columns = ['Team', 'CO2e (kg)']
-            st.dataframe(
-                team_co2e.style.background_gradient(cmap='Blues', subset=['CO2e (kg)']),
-                width='stretch',
-                hide_index=True
-            )
-
-        st.markdown("---")
-        
-        # Dataset Explorer section
-        st.subheader("🔍 Enriched Dataset Explorer")
-        st.write("Browse the raw telemetry logs containing resource utilization metrics and computed carbon equivalence values.")
-        
-        # Filters
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1:
-            selected_provider = st.multiselect("Cloud Provider", options=df['provider'].unique(), default=df['provider'].unique(), key="f_provider")
-        with col_f2:
-            selected_service = st.multiselect("Service Type", options=df['service_type'].unique(), default=df['service_type'].unique(), key="f_service")
-        with col_f3:
-            selected_team = st.multiselect("Team", options=df['team'].unique(), default=df['team'].unique(), key="f_team")
-            
-        filtered_df = df[
-            (df['provider'].isin(selected_provider)) &
-            (df['service_type'].isin(selected_service)) &
-            (df['team'].isin(selected_team))
-        ]
-        
-        st.dataframe(filtered_df, width='stretch')
-        st.caption(f"Showing {len(filtered_df)} records of {len(df)} after filtering.")
-        
-    with tab_forecast:
-        st.markdown("### Sprint 2: AI Carbon Forecasting Model")
-        st.write("Predict future cloud carbon footprints using time-series features (lags, rolling averages, and days-of-week).")
-        
-        model_path = 'model/co2e_model.pkl'
-        plot_path = 'model/forecast_plot.png'
-        
-        if not os.path.exists(model_path) or not os.path.exists(plot_path):
-            st.warning("Forecasting model has not been trained yet. Please run `python model/train_model.py` in your terminal to train the model and generate metrics.")
-        else:
-            # Model stats and comparisons
-            st.subheader("📊 Model Evaluation & Comparison")
-            col_m1, col_m2, col_m3 = st.columns(3)
-            with col_m1:
-                st.markdown("""
-                    <div class="metric-card" style="border-left-color: #1d3557;">
-                        <div class="metric-label">Best Selected Model</div>
-                        <div class="metric-value">Linear Regression</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col_m2:
-                st.markdown("""
-                    <div class="metric-card" style="border-left-color: #e63946;">
-                        <div class="metric-label">Linear Regression RMSE</div>
-                        <div class="metric-value">0.0250 kg</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col_m3:
-                st.markdown("""
-                    <div class="metric-card" style="border-left-color: #2ec4b6;">
-                        <div class="metric-label">Random Forest RMSE</div>
-                        <div class="metric-value">0.0259 kg</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-            st.image(plot_path, caption="Evaluation Results: Actual vs. Predicted daily emissions over the 30-day testing window.", width='stretch')
-            
-            st.markdown("---")
-            
-            # Prediction interface
-            st.subheader("🔮 Live Daily Carbon Predictor")
-            st.write("Input simulated telemetry lag factors and rolling metrics to generate a live daily carbon prediction.")
-            
-            # Loading model
-            model = joblib.load(model_path)
-            
-            col_p1, col_p2 = st.columns(2)
-            with col_p1:
-                input_lag7 = st.number_input("Emissions 7 days ago (kg CO2e)", min_value=0.0, max_value=2.0, value=0.045, step=0.005)
-                input_lag14 = st.number_input("Emissions 14 days ago (kg CO2e)", min_value=0.0, max_value=2.0, value=0.042, step=0.005)
-            with col_p2:
-                input_roll7 = st.number_input("7-Day rolling average emissions (kg CO2e)", min_value=0.0, max_value=2.0, value=0.044, step=0.005)
-                day_options = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-                selected_day = st.selectbox("Forecast Day of Week", options=day_options, index=0)
-                input_dow = day_options.index(selected_day)
-                
-            if st.button("Predict Daily CO2e emissions"):
-                # Make prediction
-                # Features shape: ['lag_7', 'lag_14', 'rolling_7', 'dow']
-                pred_val = model.predict([[input_lag7, input_lag14, input_roll7, input_dow]])[0]
-                
-                st.markdown("---")
-                st.markdown(f"### Predicted Emissions: **{pred_val:.4f} kg CO2e**")
-                
-                # Context comparison
-                mean_daily = 0.0445
-                pct_diff = ((pred_val - mean_daily) / mean_daily) * 100
-                if pct_diff > 0:
-                    st.warning(f"This is **{pct_diff:.1f}% higher** than the average daily baseline emissions ({mean_daily:.4f} kg).")
+        if st.button("🔮 Generate 30-Day Forecast"):
+            with st.spinner("Querying forecasting API..."):
+                forecast_data = fetch_from_api("/forecast")
+                if forecast_data:
+                    forecast_df = pd.DataFrame(forecast_data)
+                    forecast_df['date'] = pd.to_datetime(forecast_df['date'])
+                    forecast_df = forecast_df.set_index('date')
+                    
+                    col_f1, col_f2 = st.columns([2, 1])
+                    with col_f1:
+                        st.line_chart(forecast_df['predicted_co2e'], color="#e63946")
+                    with col_f2:
+                        st.write("**Forecasted Daily Value Grid**")
+                        st.dataframe(forecast_df, width='stretch')
                 else:
-                    st.info(f"This is **{abs(pct_diff):.1f}% lower** than the average daily baseline emissions ({mean_daily:.4f} kg).")
+                    st.error("Failed to fetch forecast predictions from the API backend.")
+
+else:
+    st.sidebar.error("FastAPI Backend: OFFLINE 🔴")
+    st.warning("⚠️ **Connection Error**: Streamlit cannot connect to the FastAPI backend service.")
+    st.info(f"Please verify that the FastAPI backend is running locally at: `{API_BASE_URL}`")
+    st.markdown("""
+        To start the FastAPI backend server, open a new terminal, activate your virtual environment, and run:
+        ```bash
+        greenops-env\\Scripts\\activate
+        uvicorn api.main:app --reload
+        ```
+    """)

@@ -91,7 +91,42 @@ Based on our data processing script:
   - *Comparison*: GRS protects against complete regional disasters, offering much higher durability at a higher cost.
 
 #### 3. Why is it a security risk to hardcode a connection string in source code?
-- **Credential Theft (Git Leakage)**: Hardcoding secrets increases the risk of pushing credentials to public version control systems (like GitHub), where bots scrape them instantly. Attackers can abuse these credentials to steal data or run high-cost services, causing massive financial and security damage.
 - **Maintenance Overhead**: Rotating keys (a security best practice) or moving between environments (Dev, Staging, Production) becomes difficult and error-prone because it requires changes to the codebase itself rather than configuration changes.
+
+### 🌐 Hurdle 4: Dashboard & API Layer
+
+#### 1. What is REST and why is it the standard for building APIs?
+**REST (Representational State Transfer)** is an architectural style for designing networked applications. It utilizes stateless client-server communication and standard HTTP protocols (GET, POST, PUT, DELETE).
+- **Why it is standard**: REST relies on standard HTTP methods, making it extremely lightweight, language-agnostic, scalable, and simple to implement and test. It promotes decoupling of client and server.
+
+#### 2. What is the difference between a GET and a POST request? Which would you use to submit new billing data?
+- **GET Request**: Used to retrieve data from a server. Data is sent in the URL path or query parameters, and requests should be idempotent (meaning they do not alter the server state).
+- **POST Request**: Used to send data to the server to create/update a resource. Data is packaged in the request body (not the URL), allowing large amounts of data to be transmitted securely.
+- **Selection**: To submit new billing data, you would use a **POST** request since it alters the database state (creates new records) and transmits sensitive data in the request body.
+
+#### 3. Why run the API and dashboard as two separate processes rather than one combined script?
+Running them as separate processes conforms to the **Separation of Concerns** principle:
+- **Scalability**: You can scale the FastAPI backend independently from the frontend dashboard (e.g., run multiple backend API replicas behind a load balancer).
+- **Modularity**: You can build other frontends (e.g., mobile apps, CLI tools, enterprise portals) that consume the exact same FastAPI endpoints without modifying any data logic.
+- **Resilience**: A frontend crash (e.g., rendering error) does not crash the backend metrics ingestion pipeline.
+
+---
+
+### ☁️ Hurdle 5: Deploy to Azure & Shift-Left Green Score
+
+#### 1. What is the 'Shift-Left' principle in DevOps, and how does the Green Score apply it to sustainability?
+- **Shift-Left**: The practice of moving tasks (such as security testing, code quality checks, and performance optimization) to the earliest phases of the software development lifecycle (SDLC) rather than waiting until deployment or post-production.
+- **Applying to Green Score**: By computing a "Green Score" sustainability rating based on historical/predicted emissions, the system acts as a CI/CD build gate. A project scoring F triggers a warning or soft block *during* the build phase, forcing developers to optimize resource usage *before* code reaches production.
+
+#### 2. What is Azure App Service and how is it different from running on a VM (IaaS)?
+- **Azure App Service (PaaS - Platform as a Service)**: A fully managed service for hosting web applications and REST APIs. Azure handles OS patching, scaling, hardware provisioning, load balancing, and network configuration automatically.
+- **Azure VM (IaaS - Infrastructure as a Service)**: Gives you raw access to a virtual machine where you must configure the operating system, web server (Nginx/IIS), security updates, firewall rules, and runtime environments yourself. PaaS allows you to focus purely on code rather than infrastructure management.
+
+#### 3. If a project scores F, what specific infrastructure changes would you recommend first?
+1. **Rightsizing VMs**: Check CPU/RAM utilization telemetry. Scale down over-provisioned VMs to match actual workloads (e.g., switching from `D4s_v5` to `D2s_v5`).
+2. **Switching Regions**: Migrate resources to regions with lower carbon intensity (cheaper, renewable energy grids like `westeurope` instead of coal-heavy grids).
+3. **Storage Tiering**: Move archival data from active hot storage to cool or archive storage tiers.
+4. **Auto-scaling Policies**: Configure auto-scalers to shut down non-production environments (QA, Dev) during off-business hours (nights and weekends).
+
 
 
