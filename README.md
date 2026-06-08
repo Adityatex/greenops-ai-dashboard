@@ -76,3 +76,22 @@ Based on our data processing script:
 - **DevOps**: 3.5145 kg CO2e (21.7%)
 - **QA**: 2.3070 kg CO2e (14.2%)
 
+### 🗄️ Hurdle 2: Data Storage on Azure
+
+#### 1. What is the difference between Azure Blob Storage and Azure SQL Database? When would you choose each?
+- **Azure Blob Storage**: An object storage solution designed to store massive amounts of unstructured data (such as CSVs, JSONs, images, videos, backups, and machine learning model weights).
+  - *When to choose*: When you need cost-effective, high-throughput storage for files, batch processing data sources, logs, or backups.
+- **Azure SQL Database**: A fully managed relational database (RDBMS) that supports structured data, relational tables, SQL queries, index optimization, and transactional consistency (ACID compliance).
+  - *When to choose*: When your data requires complex relational integrity, transactions, real-time query joins, and strict data typing (e.g., e-commerce orders, user profiles).
+
+#### 2. What is LRS replication and what are its limitations vs GRS?
+- **LRS (Locally Redundant Storage)**: Replicates your data synchronously three times within a single physical datacenter in the primary region.
+  - *Limitation*: If the entire datacenter facility experiences a major disaster (such as a fire, flood, or power grid failure), LRS data could be permanently lost or inaccessible.
+- **GRS (Geo-Redundant Storage)**: Replicates your data synchronously three times in the primary region, and then replicates it asynchronously to a secondary region (hundreds of miles away) for disaster recovery.
+  - *Comparison*: GRS protects against complete regional disasters, offering much higher durability at a higher cost.
+
+#### 3. Why is it a security risk to hardcode a connection string in source code?
+- **Credential Theft (Git Leakage)**: Hardcoding secrets increases the risk of pushing credentials to public version control systems (like GitHub), where bots scrape them instantly. Attackers can abuse these credentials to steal data or run high-cost services, causing massive financial and security damage.
+- **Maintenance Overhead**: Rotating keys (a security best practice) or moving between environments (Dev, Staging, Production) becomes difficult and error-prone because it requires changes to the codebase itself rather than configuration changes.
+
+

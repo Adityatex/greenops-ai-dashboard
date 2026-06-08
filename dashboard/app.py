@@ -2,6 +2,12 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import io
+from dotenv import load_dotenv
+from azure.storage.blob import BlobServiceClient
+
+# Load environment variables
+load_dotenv()
 
 # Set page configuration
 st.set_page_config(
@@ -10,6 +16,34 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Cache data loading to optimize performance
+@st.cache_data
+def load_dataset():
+    conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    if conn_str:
+        try:
+            blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+            container_name = "greenops-data"
+            blob_name = "cloud_usage_enriched.csv"
+            container_client = blob_service_client.get_container_client(container_name)
+            blob_client = container_client.get_blob_client(blob_name)
+            data = blob_client.download_blob().readall()
+            df = pd.read_csv(io.BytesIO(data), parse_dates=['date'])
+            return df, "Live Cloud Mode ☁️"
+        except Exception as e:
+            st.sidebar.error(f"Azure Connection Error: {e}")
+            
+    # Fallback to local
+    enriched_path = 'data/cloud_usage_enriched.csv'
+    if os.path.exists(enriched_path):
+        df = pd.read_csv(enriched_path, parse_dates=['date'])
+        return df, "Local Offline Mode 💾"
+    else:
+        return None, None
+
+# Load dataset and determine mode
+df, mode_label = load_dataset()
 
 # Custom Styling for Premium Design
 st.markdown("""
@@ -39,17 +73,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Add sidebar details
+if mode_label:
+    st.sidebar.subheader("🔌 Connection Status")
+    if "Live Cloud" in mode_label:
+        st.sidebar.success(mode_label)
+        st.sidebar.info("Data source: Azure Blob Storage (`greenops-data`)")
+    else:
+        st.sidebar.warning(mode_label)
+        st.sidebar.info("Data source: Local filesystem (`data/cloud_usage_enriched.csv`)")
+
 st.title("🌱 GreenOps AI: Cloud Sustainability & Carbon Dashboard")
 st.markdown("### Sprint 1: Carbon Baseline & Dataset Explorer")
 st.write("This interactive dashboard aggregates, cleans, and analyzes Xebia's simulated cloud infrastructure usage to establish a carbon emissions baseline (kg CO2e).")
 
-# Load enriched data
-enriched_path = 'data/cloud_usage_enriched.csv'
-
-if not os.path.exists(enriched_path):
-    st.error(f"Enriched dataset not found at `{enriched_path}`. Please run `python data/process_dataset.py` first to generate it.")
+if df is None:
+    st.error("Enriched dataset not found. Please paste your Azure Connection String in `.env` or run `python data/process_dataset.py` to generate a local baseline.")
 else:
-    df = pd.read_csv(enriched_path, parse_dates=['date'])
     
     # Calculate global metrics
     total_cost = df['cost_usd'].sum()
